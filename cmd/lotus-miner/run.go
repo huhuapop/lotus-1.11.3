@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"syscall"
 
-	scServer "github.com/moran666666/sector-counter/server"
+	scServer "github.com/huhuapop/sector-counter/server"
 
 	"github.com/filecoin-project/lotus/api/v1api"
 
