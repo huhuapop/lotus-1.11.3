@@ -6,7 +6,7 @@ import (
 	"sort"
 	"time"
 
-	scClient "github.com/echowxsy/sector-counter/client"
+	scClient "github.com/huhuapop/sector-counter/client"
 
 	"golang.org/x/xerrors"
 

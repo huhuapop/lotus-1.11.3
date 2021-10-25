@@ -1293,8 +1293,8 @@ github.com/modern-go/concurrent v0.0.0-20180228061459-e0a39a4cb421/go.mod h1:6dJ
 github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd/go.mod h1:6dJC0mAP4ikYIbvyc7fijjWJddQyLn8Ig3JB5CqoB9Q=
 github.com/modern-go/reflect2 v0.0.0-20180701023420-4b7aa43c6742/go.mod h1:bx2lNnkwVCuqBIxFjflWJWanXIb3RllmbCylyMrvgv0=
 github.com/modern-go/reflect2 v1.0.1/go.mod h1:bx2lNnkwVCuqBIxFjflWJWanXIb3RllmbCylyMrvgv0=
-github.com/echowxsy/sector-counter v0.0.0-20200906011345-6672fe8fb056 h1:8/nlH7HlhFlu/3aCEauc5+L1lS7GZ2sXS2oQ1nj7YUI=
-github.com/echowxsy/sector-counter v0.0.0-20200906011345-6672fe8fb056/go.mod h1:okDc8Uj1zfAP8Cso7IRPEKg03EwUfHm28gWCcdBaB2Y=
+github.com/huhuapop/sector-counter v0.0.0-20200906011345-6672fe8fb056 h1:8/nlH7HlhFlu/3aCEauc5+L1lS7GZ2sXS2oQ1nj7YUI=
+github.com/huhuapop/sector-counter v0.0.0-20200906011345-6672fe8fb056/go.mod h1:okDc8Uj1zfAP8Cso7IRPEKg03EwUfHm28gWCcdBaB2Y=
 github.com/mr-tron/base58 v1.1.0/go.mod h1:xcD2VGqlgYjBdcBLw+TuYLr8afG+Hj8g2eTVqeSzSU8=
 github.com/mr-tron/base58 v1.1.1/go.mod h1:xcD2VGqlgYjBdcBLw+TuYLr8afG+Hj8g2eTVqeSzSU8=
 github.com/mr-tron/base58 v1.1.2/go.mod h1:BinMc/sQntlIE1frQmRFPUoPA1Zkr8VRgBdjWI2mNwc=
