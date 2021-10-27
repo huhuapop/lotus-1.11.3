@@ -1,20 +1,32 @@
 package main
 
 import (
-	"fmt"
+	"context"
+	"net"
+	"net/http"
 	_ "net/http/pprof"
 	"os"
+	"os/signal"
+	"path/filepath"
+	"syscall"
+
+	scServer "github.com/huhuapop/sector-counter/server"
 
 	"github.com/filecoin-project/lotus/api/v1api"
 
 	"github.com/filecoin-project/lotus/api/v0api"
 
+	mux "github.com/gorilla/mux"
 	"github.com/multiformats/go-multiaddr"
+	manet "github.com/multiformats/go-multiaddr/net"
 	"github.com/urfave/cli/v2"
 	"go.opencensus.io/stats"
 	"go.opencensus.io/stats/view"
 	"go.opencensus.io/tag"
 	"golang.org/x/xerrors"
+
+	"github.com/filecoin-project/go-jsonrpc"
+	"github.com/filecoin-project/go-jsonrpc/auth"
 
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/build"
@@ -23,6 +35,7 @@ import (
 	"github.com/filecoin-project/lotus/metrics"
 	"github.com/filecoin-project/lotus/node"
 	"github.com/filecoin-project/lotus/node/config"
+	"github.com/filecoin-project/lotus/node/impl"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
 	"github.com/filecoin-project/lotus/node/repo"
 )
@@ -31,6 +44,51 @@ var runCmd = &cli.Command{
 	Name:  "run",
 	Usage: "Start a lotus miner process",
 	Flags: []cli.Flag{
+		&cli.StringFlag{
+			Name:  "c2address",
+			Usage: "extern c2 ip and port",
+			Value: "",
+		},
+		&cli.BoolFlag{
+			Name:  "multi_wnminer",
+			Usage: "enable Multiple winningPoSt miner",
+			Value: false,
+		},
+		&cli.BoolFlag{
+			Name:  "wdpost",
+			Usage: "enable windowPoSt",
+			Value: true,
+		},
+		&cli.BoolFlag{
+			Name:  "wnpost",
+			Usage: "enable winningPoSt",
+			Value: true,
+		},
+		&cli.BoolFlag{
+			Name:  "p2p",
+			Usage: "enable P2P",
+			Value: true,
+		},
+		&cli.StringFlag{
+			Name:  "sctype",
+			Usage: "sector counter type(alloce,get)",
+			Value: "",
+		},
+		&cli.StringFlag{
+			Name:  "sclisten",
+			Usage: "host address and port the sector counter will listen on",
+			Value: "",
+		},
+		&cli.StringFlag{
+			Name:  "workername",
+			Usage: "worker name will display on jobs list",
+			Value: "",
+		},
+		&cli.StringFlag{
+			Name:  "ability",
+			Usage: "worker sealing ability",
+			Value: "AP:1,PC1:1,PC2:1,C1:1,C2:1,FIN:1,GET:1,UNS:1,RD:1",
+		},
 		&cli.StringFlag{
 			Name:  "miner-api",
 			Usage: "2345",
@@ -51,6 +109,55 @@ var runCmd = &cli.Command{
 		},
 	},
 	Action: func(cctx *cli.Context) error {
+		if cctx.String("c2address") != "" {
+			os.Setenv("C2_ADDRESS", cctx.String("c2address"))
+		}
+
+		if cctx.Bool("multi_wnminer") {
+			os.Setenv("LOTUS_MUL_WNMINER", "true")
+		} else {
+			os.Unsetenv("LOTUS_MUL_WNMINER")
+		}
+
+		if cctx.Bool("wdpost") {
+			os.Setenv("LOTUS_WDPOST", "true")
+		} else {
+			os.Unsetenv("LOTUS_WDPOST")
+		}
+
+		if cctx.Bool("wnpost") {
+			os.Setenv("LOTUS_WNPOST", "true")
+		} else {
+			os.Unsetenv("LOTUS_WNPOST")
+		}
+
+		scType := cctx.String("sctype")
+		if scType == "alloce" || scType == "get" {
+			os.Setenv("SC_TYPE", scType)
+
+			scListen := cctx.String("sclisten")
+			if scListen == "" {
+				log.Errorf("sclisten must be set")
+				return nil
+			}
+			os.Setenv("SC_LISTEN", scListen)
+
+			if scType == "alloce" {
+				scFilePath := filepath.Join(cctx.String(FlagMinerRepo), "sectorid")
+				go scServer.Run(scFilePath)
+			}
+		} else {
+			os.Unsetenv("SC_TYPE")
+		}
+
+		if cctx.String("workername") != "" {
+			os.Setenv("WORKER_NAME", cctx.String("workername"))
+		}
+
+		if cctx.String("ability") != "" {
+			os.Setenv("ABILITY", cctx.String("ability"))
+		}
+
 		if !cctx.Bool("enable-gpu-proving") {
 			err := os.Setenv("BELLMAN_NO_GPU", "true")
 			if err != nil {
@@ -132,8 +239,6 @@ var runCmd = &cli.Command{
 			return xerrors.Errorf("invalid config for repo, got: %T", c)
 		}
 
-		bootstrapLibP2P := cfg.Subsystems.EnableMarkets
-
 		err = lr.Close()
 		if err != nil {
 			return err
@@ -159,13 +264,12 @@ var runCmd = &cli.Command{
 		}
 
 		endpoint, err := r.APIEndpoint()
+
 		if err != nil {
 			return xerrors.Errorf("getting API endpoint: %w", err)
 		}
 
-		if bootstrapLibP2P {
-			log.Infof("Bootstrapping libp2p network with full node")
-
+		if cctx.Bool("p2p") {
 			// Bootstrap with full node
 			remoteAddrs, err := nodeApi.NetAddrsListen(ctx)
 			if err != nil {
@@ -175,29 +279,64 @@ var runCmd = &cli.Command{
 			if err := minerapi.NetConnect(ctx, remoteAddrs); err != nil {
 				return xerrors.Errorf("connecting to full node (libp2p): %w", err)
 			}
+		} else {
+			log.Warn("This miner will be disable p2p.")
 		}
 
 		log.Infof("Remote version %s", v)
-
+		lst, err := manet.Listen(endpoint)
+		if err != nil {
+			return xerrors.Errorf("could not listen: %w", err)
+		}
 		// Instantiate the miner node handler.
-		handler, err := node.MinerHandler(minerapi, true)
+		//handler, err := node.MinerHandler(minerapi, true)
 		if err != nil {
 			return xerrors.Errorf("failed to instantiate rpc handler: %w", err)
 		}
 
-		// Serve the RPC.
-		rpcStopper, err := node.ServeRPC(handler, "lotus-miner", endpoint)
-		if err != nil {
-			return fmt.Errorf("failed to start json-rpc endpoint: %s", err)
+		mux := mux.NewRouter()
+
+		rpcServer := jsonrpc.NewServer()
+		rpcServer.Register("Filecoin", api.PermissionedStorMinerAPI(metrics.MetricedStorMinerAPI(minerapi)))
+
+		mux.Handle("/rpc/v0", rpcServer)
+		mux.PathPrefix("/remote").HandlerFunc(minerapi.(*impl.StorageMinerAPI).ServeRemote)
+		mux.Handle("/debug/metrics", metrics.Exporter())
+		mux.PathPrefix("/").Handler(http.DefaultServeMux) // pprof
+
+		ah := &auth.Handler{
+			Verify: minerapi.AuthVerify,
+			Next:   mux.ServeHTTP,
 		}
 
-		// Monitor for shutdown.
-		finishCh := node.MonitorShutdown(shutdownChan,
-			node.ShutdownHandler{Component: "rpc server", StopFunc: rpcStopper},
-			node.ShutdownHandler{Component: "miner", StopFunc: stop},
-		)
+		srv := &http.Server{
+			Handler: ah,
+			BaseContext: func(listener net.Listener) context.Context {
+				ctx, _ := tag.New(context.Background(), tag.Upsert(metrics.APIInterface, "lotus-miner"))
+				return ctx
+			},
+		}
 
-		<-finishCh
-		return nil
+		sigChan := make(chan os.Signal, 2)
+		go func() {
+			select {
+			case sig := <-sigChan:
+				log.Warnw("received shutdown", "signal", sig)
+			case <-shutdownChan:
+				log.Warn("received shutdown")
+			}
+
+			log.Warn("Shutting down...")
+			if err := stop(context.TODO()); err != nil {
+				log.Errorf("graceful shutting down failed: %s", err)
+			}
+			if err := srv.Shutdown(context.TODO()); err != nil {
+				log.Errorf("shutting down RPC server failed: %s", err)
+			}
+			log.Warn("Graceful shutdown successful")
+		}()
+		signal.Notify(sigChan, syscall.SIGTERM, syscall.SIGINT)
+
+		return srv.Serve(manet.NetListener(lst))
 	},
 }

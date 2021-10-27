@@ -20,7 +20,7 @@ import (
 	ffi "github.com/filecoin-project/filecoin-ffi"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-statestore"
-	"github.com/filecoin-project/specs-storage/storage"
+	storage "github.com/filecoin-project/specs-storage/storage"
 
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/lotus/extern/sector-storage/sealtasks"
@@ -33,11 +33,6 @@ var pathTypes = []storiface.SectorFileType{storiface.FTUnsealed, storiface.FTSea
 type WorkerConfig struct {
 	TaskTypes []sealtasks.TaskType
 	NoSwap    bool
-
-	// IgnoreResourceFiltering enables task distribution to happen on this
-	// worker regardless of its currently available resources. Used in testing
-	// with the local worker.
-	IgnoreResourceFiltering bool
 }
 
 // used do provide custom proofs impl (mostly used in testing)
@@ -50,9 +45,6 @@ type LocalWorker struct {
 	ret        storiface.WorkerReturn
 	executor   ExecutorFunc
 	noSwap     bool
-
-	// see equivalent field on WorkerConfig.
-	ignoreResources bool
 
 	ct          *workerCallTracker
 	acceptTasks map[sealtasks.TaskType]struct{}
@@ -79,12 +71,12 @@ func newLocalWorker(executor ExecutorFunc, wcfg WorkerConfig, store stores.Store
 		ct: &workerCallTracker{
 			st: cst,
 		},
-		acceptTasks:     acceptTasks,
-		executor:        executor,
-		noSwap:          wcfg.NoSwap,
-		ignoreResources: wcfg.IgnoreResourceFiltering,
-		session:         uuid.New(),
-		closing:         make(chan struct{}),
+		acceptTasks: acceptTasks,
+		executor:    executor,
+		noSwap:      wcfg.NoSwap,
+
+		session: uuid.New(),
+		closing: make(chan struct{}),
 	}
 
 	if w.executor == nil {
@@ -169,6 +161,7 @@ const (
 	ReleaseUnsealed ReturnType = "ReleaseUnsealed"
 	MoveStorage     ReturnType = "MoveStorage"
 	UnsealPiece     ReturnType = "UnsealPiece"
+	ReadPiece       ReturnType = "ReadPiece"
 	Fetch           ReturnType = "Fetch"
 )
 
@@ -216,6 +209,7 @@ var returnFunc = map[ReturnType]func(context.Context, storiface.CallID, storifac
 	ReleaseUnsealed: rfunc(storiface.WorkerReturn.ReturnReleaseUnsealed),
 	MoveStorage:     rfunc(storiface.WorkerReturn.ReturnMoveStorage),
 	UnsealPiece:     rfunc(storiface.WorkerReturn.ReturnUnsealPiece),
+	ReadPiece:       rfunc(storiface.WorkerReturn.ReturnReadPiece),
 	Fetch:           rfunc(storiface.WorkerReturn.ReturnFetch),
 }
 
@@ -455,6 +449,17 @@ func (l *LocalWorker) UnsealPiece(ctx context.Context, sector storage.SectorRef,
 	})
 }
 
+func (l *LocalWorker) ReadPiece(ctx context.Context, writer io.Writer, sector storage.SectorRef, index storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize) (storiface.CallID, error) {
+	sb, err := l.executor()
+	if err != nil {
+		return storiface.UndefCall, err
+	}
+
+	return l.asyncCall(ctx, sector, ReadPiece, func(ctx context.Context, ci storiface.CallID) (interface{}, error) {
+		return sb.ReadPiece(ctx, writer, sector, index, size)
+	})
+}
+
 func (l *LocalWorker) TaskTypes(context.Context) (map[sealtasks.TaskType]struct{}, error) {
 	l.taskLk.Lock()
 	defer l.taskLk.Unlock()
@@ -488,6 +493,10 @@ func (l *LocalWorker) Info(context.Context) (storiface.WorkerInfo, error) {
 		panic(err)
 	}
 
+	if env, ok := os.LookupEnv("WORKER_NAME"); ok {
+		hostname = hostname + "-" + env
+	}
+
 	gpus, err := ffi.GetGPUDevices()
 	if err != nil {
 		log.Errorf("getting gpu devices failed: %+v", err)
@@ -509,8 +518,8 @@ func (l *LocalWorker) Info(context.Context) (storiface.WorkerInfo, error) {
 	}
 
 	return storiface.WorkerInfo{
-		Hostname:        hostname,
-		IgnoreResources: l.ignoreResources,
+		Hostname:      hostname,
+		TaskResources: storiface.NewTaskLimitConfig(),
 		Resources: storiface.WorkerResources{
 			MemPhysical: mem.Total,
 			MemSwap:     memSwap,

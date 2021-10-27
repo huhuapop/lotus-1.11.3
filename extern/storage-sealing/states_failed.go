@@ -63,9 +63,9 @@ func (m *Sealing) handleSealPrecommit2Failed(ctx statemachine.Context, sector Se
 		return err
 	}
 
-	if sector.PreCommit2Fails > 3 {
-		return ctx.Send(SectorRetrySealPreCommit1{})
-	}
+	// if sector.PreCommit2Fails > 3 {
+	// 	return ctx.Send(SectorRetrySealPreCommit1{})
+	// }
 
 	return ctx.Send(SectorRetrySealPreCommit2{})
 }
@@ -174,9 +174,9 @@ func (m *Sealing) handleComputeProofFailed(ctx statemachine.Context, sector Sect
 		return err
 	}
 
-	if sector.InvalidProofs > 1 {
-		return ctx.Send(SectorSealPreCommit1Failed{xerrors.Errorf("consecutive compute fails")})
-	}
+	// if sector.InvalidProofs > 1 {
+	// 	return ctx.Send(SectorSealPreCommit1Failed{xerrors.Errorf("consecutive compute fails")})
+	// }
 
 	return ctx.Send(SectorRetryComputeProof{})
 }
@@ -224,6 +224,12 @@ func (m *Sealing) handleCommitFailed(ctx statemachine.Context, sector SectorInfo
 		case *ErrBadSeed:
 			log.Errorf("seed changed, will retry: %+v", err)
 			return ctx.Send(SectorRetryWaitSeed{})
+		case *ErrBadCommD:
+			return ctx.Send(SectorRetryComputeProof{})
+		case *ErrExpiredTicket:
+			return ctx.Send(SectorTicketExpired{xerrors.Errorf("ticket expired error, removing sector: %w", err)})
+		case *ErrBadTicket:
+			return ctx.Send(SectorTicketExpired{xerrors.Errorf("expired ticket, removing sector: %w", err)})
 		case *ErrInvalidProof:
 			if err := failedCooldown(ctx, sector); err != nil {
 				return err
@@ -234,6 +240,8 @@ func (m *Sealing) handleCommitFailed(ctx statemachine.Context, sector SectorInfo
 			}
 
 			return ctx.Send(SectorRetryInvalidProof{})
+		case *ErrSectorNumberAllocated:
+			// noop, already committed?
 		case *ErrPrecommitOnChain:
 			log.Errorf("no precommit on chain, will retry: %+v", err)
 			return ctx.Send(SectorRetryPreCommitWait{})

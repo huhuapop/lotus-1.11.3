@@ -5,8 +5,9 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"time"
-
+	"github.com/ipfs/go-cid"
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-bitfield"
 	datatransfer "github.com/filecoin-project/go-data-transfer"
@@ -770,6 +771,8 @@ type StorageMinerStruct struct {
 
 		StorageAttach func(p0 context.Context, p1 stores.StorageInfo, p2 fsutil.FsStat) error `perm:"admin"`
 
+		MaybeAddPice func(p0 context.Context, p1 storiface.SectorFileType, p2 abi.SectorSize, p3 storiface.PathType) bool `perm:"admin"`
+
 		StorageBestAlloc func(p0 context.Context, p1 storiface.SectorFileType, p2 abi.SectorSize, p3 storiface.PathType) ([]stores.StorageInfo, error) `perm:"admin"`
 
 		StorageDeclareSector func(p0 context.Context, p1 stores.ID, p2 abi.SectorID, p3 storiface.SectorFileType, p4 bool) error `perm:"admin"`
@@ -831,6 +834,11 @@ type WorkerStruct struct {
 	Internal struct {
 		AddPiece func(p0 context.Context, p1 storage.SectorRef, p2 []abi.UnpaddedPieceSize, p3 abi.UnpaddedPieceSize, p4 storage.Data) (storiface.CallID, error) `perm:"admin"`
 
+<<<<<<< HEAD
+=======
+		ReadPiece func(p0 context.Context, p1 io.Writer, p2 storage.SectorRef, p3 storiface.UnpaddedByteIndex, p4 abi.UnpaddedPieceSize) (storiface.CallID, error) `perm:"admin"`
+
+>>>>>>> base
 		Enabled func(p0 context.Context) (bool, error) `perm:"admin"`
 
 		Fetch func(p0 context.Context, p1 storage.SectorRef, p2 storiface.SectorFileType, p3 storiface.PathType, p4 storiface.AcquireMode) (storiface.CallID, error) `perm:"admin"`
@@ -4499,6 +4507,11 @@ func (s *StorageMinerStub) StorageAttach(p0 context.Context, p1 stores.StorageIn
 	return ErrNotSupported
 }
 
+
+func (s *StorageMinerStruct) MaybeAddPice(p0 context.Context, p1 storiface.SectorFileType, p2 abi.SectorSize, p3 storiface.PathType) bool {
+	return s.Internal.MaybeAddPice(p0, p1, p2, p3)
+}
+
 func (s *StorageMinerStruct) StorageBestAlloc(p0 context.Context, p1 storiface.SectorFileType, p2 abi.SectorSize, p3 storiface.PathType) ([]stores.StorageInfo, error) {
 	if s.Internal.StorageBestAlloc == nil {
 		return *new([]stores.StorageInfo), ErrNotSupported
@@ -4816,6 +4829,14 @@ func (s *WorkerStruct) ProcessSession(p0 context.Context) (uuid.UUID, error) {
 
 func (s *WorkerStub) ProcessSession(p0 context.Context) (uuid.UUID, error) {
 	return *new(uuid.UUID), ErrNotSupported
+}
+
+func (s *WorkerStruct) ReadPiece(p0 context.Context, p1 io.Writer, p2 storage.SectorRef, p3 storiface.UnpaddedByteIndex, p4 abi.UnpaddedPieceSize) (storiface.CallID, error) {
+	return s.Internal.ReadPiece(p0, p1, p2, p3, p4)
+}
+
+func (s *WorkerStub) ReadPiece(p0 context.Context, p1 io.Writer, p2 storage.SectorRef, p3 storiface.UnpaddedByteIndex, p4 abi.UnpaddedPieceSize) (storiface.CallID, error) {
+	return *new(storiface.CallID), xerrors.New("method not supported")
 }
 
 func (s *WorkerStruct) ReleaseUnsealed(p0 context.Context, p1 storage.SectorRef, p2 []storage.Range) (storiface.CallID, error) {
