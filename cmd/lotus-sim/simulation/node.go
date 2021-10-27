@@ -11,7 +11,6 @@ import (
 	"github.com/ipfs/go-datastore/query"
 
 	"github.com/filecoin-project/lotus/blockstore"
-	"github.com/filecoin-project/lotus/chain/consensus/filcns"
 	"github.com/filecoin-project/lotus/chain/stmgr"
 	"github.com/filecoin-project/lotus/chain/store"
 	"github.com/filecoin-project/lotus/chain/types"
@@ -62,7 +61,7 @@ func NewNode(ctx context.Context, r repo.Repo) (nd *Node, _err error) {
 	}
 	return &Node{
 		repo:       lr,
-		Chainstore: store.NewChainStore(bs, bs, ds, filcns.Weight, nil),
+		Chainstore: store.NewChainStore(bs, bs, ds, nil),
 		MetadataDS: ds,
 		Blockstore: bs,
 	}, err
@@ -106,7 +105,7 @@ func (nd *Node) LoadSim(ctx context.Context, name string) (*Simulation, error) {
 	if err != nil {
 		return nil, xerrors.Errorf("failed to create upgrade schedule for simulation %s: %w", name, err)
 	}
-	sim.StateManager, err = stmgr.NewStateManager(nd.Chainstore, filcns.NewTipSetExecutor(), vm.Syscalls(mock.Verifier), us)
+	sim.StateManager, err = stmgr.NewStateManagerWithUpgradeSchedule(nd.Chainstore, vm.Syscalls(mock.Verifier), us)
 	if err != nil {
 		return nil, xerrors.Errorf("failed to create state manager for simulation %s: %w", name, err)
 	}
@@ -125,14 +124,10 @@ func (nd *Node) CreateSim(ctx context.Context, name string, head *types.TipSet) 
 	if err != nil {
 		return nil, err
 	}
-	sm, err := stmgr.NewStateManager(nd.Chainstore, filcns.NewTipSetExecutor(), vm.Syscalls(mock.Verifier), filcns.DefaultUpgradeSchedule())
-	if err != nil {
-		return nil, xerrors.Errorf("creating state manager: %w", err)
-	}
 	sim := &Simulation{
 		name:         name,
 		Node:         nd,
-		StateManager: sm,
+		StateManager: stmgr.NewStateManager(nd.Chainstore, vm.Syscalls(mock.Verifier)),
 		stages:       stages,
 	}
 	if has, err := nd.MetadataDS.Has(sim.key("head")); err != nil {

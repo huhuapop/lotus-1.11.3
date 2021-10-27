@@ -725,13 +725,11 @@ func (sm *StorageMinerAPI) DagstoreInitializeAll(ctx context.Context, params api
 
 	go func() {
 		for i, k := range toInitialize {
-			if throttle != nil {
-				select {
-				case <-throttle:
-					// acquired a throttle token, proceed.
-				case <-ctx.Done():
-					return
-				}
+			select {
+			case <-throttle:
+				// acquired a throttle token, proceed.
+			case <-ctx.Done():
+				return
 			}
 
 			go func(k string, i int) {
@@ -748,10 +746,7 @@ func (sm *StorageMinerAPI) DagstoreInitializeAll(ctx context.Context, params api
 				}
 
 				err := sm.DagstoreInitializeShard(ctx, k)
-
-				if throttle != nil {
-					throttle <- struct{}{}
-				}
+				throttle <- struct{}{}
 
 				r.Event = "end"
 				if err == nil {

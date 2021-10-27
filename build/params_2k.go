@@ -1,4 +1,3 @@
-//go:build debug || 2k
 // +build debug 2k
 
 package build

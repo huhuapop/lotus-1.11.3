@@ -15,6 +15,8 @@ import (
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-state-types/big"
 	"github.com/filecoin-project/go-state-types/network"
+	"github.com/filecoin-project/go-state-types/rt"
+
 	"github.com/filecoin-project/specs-actors/v3/actors/migration/nv10"
 
 	"github.com/filecoin-project/lotus/chain/actors/adt"
@@ -39,11 +41,8 @@ type MigrationCache interface {
 // - The oldState is the state produced by the upgrade epoch.
 // - The returned newState is the new state that will be used by the next epoch.
 // - The height is the upgrade epoch height (already executed).
-// - The tipset is the first non-null tipset after the upgrade height (the tipset in
-//   which the upgrade is executed). Do not assume that ts.Height() is the upgrade height.
-//
-// NOTE: In StateCompute and CallWithGas, the passed tipset is actually the tipset _before_ the
-// upgrade. The tipset should really only be used for referencing the "current chain".
+// - The tipset is the tipset for the last non-null block before the upgrade. Do
+//   not assume that ts.Height() is the upgrade height.
 type MigrationFunc func(
 	ctx context.Context,
 	sm *StateManager, cache MigrationCache,
@@ -95,6 +94,21 @@ type Upgrade struct {
 }
 
 type UpgradeSchedule []Upgrade
+
+type migrationLogger struct{}
+
+func (ml migrationLogger) Log(level rt.LogLevel, msg string, args ...interface{}) {
+	switch level {
+	case rt.DEBUG:
+		log.Debugf(msg, args...)
+	case rt.INFO:
+		log.Infof(msg, args...)
+	case rt.WARN:
+		log.Warnf(msg, args...)
+	case rt.ERROR:
+		log.Errorf(msg, args...)
+	}
+}
 
 func (us UpgradeSchedule) Validate() error {
 	// Make sure each upgrade is valid.
@@ -164,7 +178,7 @@ func (us UpgradeSchedule) GetNtwkVersion(e abi.ChainEpoch) (network.Version, err
 	return network.Version0, xerrors.Errorf("Epoch %d has no defined network version", e)
 }
 
-func (sm *StateManager) HandleStateForks(ctx context.Context, root cid.Cid, height abi.ChainEpoch, cb ExecMonitor, ts *types.TipSet) (cid.Cid, error) {
+func (sm *StateManager) handleStateForks(ctx context.Context, root cid.Cid, height abi.ChainEpoch, cb ExecMonitor, ts *types.TipSet) (cid.Cid, error) {
 	retCid := root
 	var err error
 	u := sm.stateMigrations[height]
@@ -194,19 +208,7 @@ func (sm *StateManager) HandleStateForks(ctx context.Context, root cid.Cid, heig
 	return retCid, nil
 }
 
-// Returns true executing tipsets between the specified heights would trigger an expensive
-// migration. NOTE: migrations occurring _at_ the target height are not included, as they're
-// executed _after_ the target height.
-func (sm *StateManager) hasExpensiveForkBetween(parent, height abi.ChainEpoch) bool {
-	for h := parent; h < height; h++ {
-		if _, ok := sm.expensiveUpgrades[h]; ok {
-			return true
-		}
-	}
-	return false
-}
-
-func (sm *StateManager) hasExpensiveFork(height abi.ChainEpoch) bool {
+func (sm *StateManager) hasExpensiveFork(ctx context.Context, height abi.ChainEpoch) bool {
 	_, ok := sm.expensiveUpgrades[height]
 	return ok
 }
@@ -314,7 +316,7 @@ func (sm *StateManager) preMigrationWorker(ctx context.Context) {
 	}
 }
 
-func DoTransfer(tree types.StateTree, from, to address.Address, amt abi.TokenAmount, cb func(trace types.ExecutionTrace)) error {
+func doTransfer(tree types.StateTree, from, to address.Address, amt abi.TokenAmount, cb func(trace types.ExecutionTrace)) error {
 	fromAct, err := tree.GetActor(from)
 	if err != nil {
 		return xerrors.Errorf("failed to get 'from' actor for transfer: %w", err)
@@ -344,8 +346,8 @@ func DoTransfer(tree types.StateTree, from, to address.Address, amt abi.TokenAmo
 		// record the transfer in execution traces
 
 		cb(types.ExecutionTrace{
-			Msg:        MakeFakeMsg(from, to, amt, 0),
-			MsgRct:     MakeFakeRct(),
+			Msg:        makeFakeMsg(from, to, amt, 0),
+			MsgRct:     makeFakeRct(),
 			Error:      "",
 			Duration:   0,
 			GasCharges: nil,
@@ -356,7 +358,7 @@ func DoTransfer(tree types.StateTree, from, to address.Address, amt abi.TokenAmo
 	return nil
 }
 
-func TerminateActor(ctx context.Context, tree *state.StateTree, addr address.Address, em ExecMonitor, epoch abi.ChainEpoch, ts *types.TipSet) error {
+func terminateActor(ctx context.Context, tree *state.StateTree, addr address.Address, em ExecMonitor, epoch abi.ChainEpoch, ts *types.TipSet) error {
 	a, err := tree.GetActor(addr)
 	if xerrors.Is(err, types.ErrActorNotFound) {
 		return types.ErrActorNotFound
@@ -365,7 +367,7 @@ func TerminateActor(ctx context.Context, tree *state.StateTree, addr address.Add
 	}
 
 	var trace types.ExecutionTrace
-	if err := DoTransfer(tree, addr, builtin.BurntFundsActorAddr, a.Balance, func(t types.ExecutionTrace) {
+	if err := doTransfer(tree, addr, builtin.BurntFundsActorAddr, a.Balance, func(t types.ExecutionTrace) {
 		trace = t
 	}); err != nil {
 		return xerrors.Errorf("transferring terminated actor's balance: %w", err)
@@ -374,10 +376,10 @@ func TerminateActor(ctx context.Context, tree *state.StateTree, addr address.Add
 	if em != nil {
 		// record the transfer in execution traces
 
-		fakeMsg := MakeFakeMsg(builtin.SystemActorAddr, addr, big.Zero(), uint64(epoch))
+		fakeMsg := makeFakeMsg(builtin.SystemActorAddr, addr, big.Zero(), uint64(epoch))
 
 		if err := em.MessageApplied(ctx, ts, fakeMsg.Cid(), fakeMsg, &vm.ApplyRet{
-			MessageReceipt: *MakeFakeRct(),
+			MessageReceipt: *makeFakeRct(),
 			ActorErr:       nil,
 			ExecutionTrace: trace,
 			Duration:       0,
@@ -416,7 +418,7 @@ func TerminateActor(ctx context.Context, tree *state.StateTree, addr address.Add
 	return tree.SetActor(init_.Address, ia)
 }
 
-func SetNetworkName(ctx context.Context, store adt.Store, tree *state.StateTree, name string) error {
+func setNetworkName(ctx context.Context, store adt.Store, tree *state.StateTree, name string) error {
 	ia, err := tree.GetActor(init_.Address)
 	if err != nil {
 		return xerrors.Errorf("getting init actor: %w", err)
@@ -443,7 +445,7 @@ func SetNetworkName(ctx context.Context, store adt.Store, tree *state.StateTree,
 	return nil
 }
 
-func MakeKeyAddr(splitAddr address.Address, count uint64) (address.Address, error) {
+func makeKeyAddr(splitAddr address.Address, count uint64) (address.Address, error) {
 	var b bytes.Buffer
 	if err := splitAddr.MarshalCBOR(&b); err != nil {
 		return address.Undef, xerrors.Errorf("marshalling split address: %w", err)
@@ -465,7 +467,7 @@ func MakeKeyAddr(splitAddr address.Address, count uint64) (address.Address, erro
 	return addr, nil
 }
 
-func MakeFakeMsg(from address.Address, to address.Address, amt abi.TokenAmount, nonce uint64) *types.Message {
+func makeFakeMsg(from address.Address, to address.Address, amt abi.TokenAmount, nonce uint64) *types.Message {
 	return &types.Message{
 		From:  from,
 		To:    to,
@@ -474,7 +476,7 @@ func MakeFakeMsg(from address.Address, to address.Address, amt abi.TokenAmount, 
 	}
 }
 
-func MakeFakeRct() *types.MessageReceipt {
+func makeFakeRct() *types.MessageReceipt {
 	return &types.MessageReceipt{
 		ExitCode: 0,
 		Return:   nil,

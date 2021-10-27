@@ -129,6 +129,7 @@ func (m *Sealing) handleRemoving(ctx statemachine.Context, sector SectorInfo) er
 
 func (m *Sealing) handleProvingSector(ctx statemachine.Context, sector SectorInfo) error {
 	// TODO: track sector health / expiration
+	log.Infof("Proving sector %d", sector.SectorNumber)
 
 	cfg, err := m.getConfig()
 	if err != nil {

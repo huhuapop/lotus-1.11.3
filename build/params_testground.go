@@ -1,4 +1,3 @@
-//go:build testground
 // +build testground
 
 // This file makes hardcoded parameters (const) configurable as vars.

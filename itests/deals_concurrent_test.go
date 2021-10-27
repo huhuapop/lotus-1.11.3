@@ -114,8 +114,6 @@ func TestDealCyclesConcurrent(t *testing.T) {
 }
 
 func TestSimultanenousTransferLimit(t *testing.T) {
-	t.Skip("skipping as flaky #7152")
-
 	if testing.Short() {
 		t.Skip("skipping test in short mode")
 	}

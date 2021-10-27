@@ -3,8 +3,6 @@ package kit
 import (
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-state-types/network"
-
-	"github.com/filecoin-project/lotus/chain/consensus/filcns"
 	"github.com/filecoin-project/lotus/chain/stmgr"
 )
 
@@ -30,7 +28,7 @@ func SDRUpgradeAt(calico, persian abi.ChainEpoch) EnsembleOpt {
 	}, stmgr.Upgrade{
 		Network:   network.Version7,
 		Height:    calico,
-		Migration: filcns.UpgradeCalico,
+		Migration: stmgr.UpgradeCalico,
 	}, stmgr.Upgrade{
 		Network: network.Version8,
 		Height:  persian,
@@ -44,7 +42,7 @@ func LatestActorsAt(upgradeHeight abi.ChainEpoch) EnsembleOpt {
 	}, stmgr.Upgrade{
 		Network:   network.Version13,
 		Height:    upgradeHeight,
-		Migration: filcns.UpgradeActorsV5,
+		Migration: stmgr.UpgradeActorsV5,
 	})
 }
 
@@ -55,6 +53,6 @@ func TurboUpgradeAt(upgradeHeight abi.ChainEpoch) EnsembleOpt {
 	}, stmgr.Upgrade{
 		Network:   network.Version12,
 		Height:    upgradeHeight,
-		Migration: filcns.UpgradeActorsV4,
+		Migration: stmgr.UpgradeActorsV4,
 	})
 }

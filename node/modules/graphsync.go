@@ -18,11 +18,13 @@ import (
 func Graphsync(parallelTransfers uint64) func(mctx helpers.MetricsCtx, lc fx.Lifecycle, r repo.LockedRepo, clientBs dtypes.ClientBlockstore, chainBs dtypes.ExposedBlockstore, h host.Host) (dtypes.Graphsync, error) {
 	return func(mctx helpers.MetricsCtx, lc fx.Lifecycle, r repo.LockedRepo, clientBs dtypes.ClientBlockstore, chainBs dtypes.ExposedBlockstore, h host.Host) (dtypes.Graphsync, error) {
 		graphsyncNetwork := gsnet.NewFromLibp2pHost(h)
-		lsys := storeutil.LinkSystemForBlockstore(clientBs)
+		loader := storeutil.LoaderForBlockstore(clientBs)
+		storer := storeutil.StorerForBlockstore(clientBs)
 
-		gs := graphsyncimpl.New(helpers.LifecycleCtx(mctx, lc), graphsyncNetwork, lsys, graphsyncimpl.RejectAllRequestsByDefault(), graphsyncimpl.MaxInProgressRequests(parallelTransfers))
-		chainLinkSystem := storeutil.LinkSystemForBlockstore(chainBs)
-		err := gs.RegisterPersistenceOption("chainstore", chainLinkSystem)
+		gs := graphsyncimpl.New(helpers.LifecycleCtx(mctx, lc), graphsyncNetwork, loader, storer, graphsyncimpl.RejectAllRequestsByDefault(), graphsyncimpl.MaxInProgressRequests(parallelTransfers))
+		chainLoader := storeutil.LoaderForBlockstore(chainBs)
+		chainStorer := storeutil.StorerForBlockstore(chainBs)
+		err := gs.RegisterPersistenceOption("chainstore", chainLoader, chainStorer)
 		if err != nil {
 			return nil, err
 		}

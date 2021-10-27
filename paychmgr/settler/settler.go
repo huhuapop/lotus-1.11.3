@@ -56,11 +56,8 @@ func SettlePaymentChannels(mctx helpers.MetricsCtx, lc fx.Lifecycle, papi API) e
 	lc.Append(fx.Hook{
 		OnStart: func(context.Context) error {
 			pcs := newPaymentChannelSettler(ctx, &papi)
-			ev, err := events.NewEvents(ctx, &papi)
-			if err != nil {
-				return err
-			}
-			return ev.Called(ctx, pcs.check, pcs.messageHandler, pcs.revertHandler, int(build.MessageConfidence+1), events.NoTimeout, pcs.matcher)
+			ev := events.NewEvents(ctx, papi)
+			return ev.Called(pcs.check, pcs.messageHandler, pcs.revertHandler, int(build.MessageConfidence+1), events.NoTimeout, pcs.matcher)
 		},
 	})
 	return nil
@@ -73,7 +70,7 @@ func newPaymentChannelSettler(ctx context.Context, api settlerAPI) *paymentChann
 	}
 }
 
-func (pcs *paymentChannelSettler) check(ctx context.Context, ts *types.TipSet) (done bool, more bool, err error) {
+func (pcs *paymentChannelSettler) check(ts *types.TipSet) (done bool, more bool, err error) {
 	return false, true, nil
 }
 

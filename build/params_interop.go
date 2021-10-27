@@ -1,4 +1,3 @@
-//go:build interopnet
 // +build interopnet
 
 package build

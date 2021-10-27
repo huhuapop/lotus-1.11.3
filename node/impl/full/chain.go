@@ -11,7 +11,6 @@ import (
 	"sync"
 
 	"github.com/filecoin-project/lotus/build"
-	"github.com/filecoin-project/lotus/chain/stmgr"
 
 	"go.uber.org/fx"
 	"golang.org/x/xerrors"
@@ -79,8 +78,7 @@ type ChainAPI struct {
 	WalletAPI
 	ChainModuleAPI
 
-	Chain  *store.ChainStore
-	TsExec stmgr.Executor
+	Chain *store.ChainStore
 
 	// ExposedBlockstore is the global monolith blockstore that is safe to
 	// expose externally. In the future, this will be segregated into two
@@ -396,7 +394,7 @@ func (s stringKey) Key() string {
 
 // TODO: ActorUpgrade: this entire function is a problem (in theory) as we don't know the HAMT version.
 // In practice, hamt v0 should work "just fine" for reading.
-func resolveOnce(bs blockstore.Blockstore, tse stmgr.Executor) func(ctx context.Context, ds ipld.NodeGetter, nd ipld.Node, names []string) (*ipld.Link, []string, error) {
+func resolveOnce(bs blockstore.Blockstore) func(ctx context.Context, ds ipld.NodeGetter, nd ipld.Node, names []string) (*ipld.Link, []string, error) {
 	return func(ctx context.Context, ds ipld.NodeGetter, nd ipld.Node, names []string) (*ipld.Link, []string, error) {
 		store := adt.WrapStore(ctx, cbor.NewCborStore(bs))
 
@@ -470,7 +468,7 @@ func resolveOnce(bs blockstore.Blockstore, tse stmgr.Executor) func(ctx context.
 				}, nil, nil
 			}
 
-			return resolveOnce(bs, tse)(ctx, ds, n, names[1:])
+			return resolveOnce(bs)(ctx, ds, n, names[1:])
 		}
 
 		if strings.HasPrefix(names[0], "@A:") {
@@ -519,7 +517,7 @@ func resolveOnce(bs blockstore.Blockstore, tse stmgr.Executor) func(ctx context.
 				}, nil, nil
 			}
 
-			return resolveOnce(bs, tse)(ctx, ds, n, names[1:])
+			return resolveOnce(bs)(ctx, ds, n, names[1:])
 		}
 
 		if names[0] == "@state" {
@@ -533,7 +531,7 @@ func resolveOnce(bs blockstore.Blockstore, tse stmgr.Executor) func(ctx context.
 				return nil, nil, xerrors.Errorf("getting actor head for @state: %w", err)
 			}
 
-			m, err := vm.DumpActorState(tse.NewActorRegistry(), &act, head.RawData())
+			m, err := vm.DumpActorState(&act, head.RawData())
 			if err != nil {
 				return nil, nil, err
 			}
@@ -567,7 +565,7 @@ func resolveOnce(bs blockstore.Blockstore, tse stmgr.Executor) func(ctx context.
 				}, nil, nil
 			}
 
-			return resolveOnce(bs, tse)(ctx, ds, n, names[1:])
+			return resolveOnce(bs)(ctx, ds, n, names[1:])
 		}
 
 		return nd.ResolveLink(names)
@@ -587,7 +585,7 @@ func (a *ChainAPI) ChainGetNode(ctx context.Context, p string) (*api.IpldObject,
 
 	r := &resolver.Resolver{
 		DAG:         dag,
-		ResolveOnce: resolveOnce(bs, a.TsExec),
+		ResolveOnce: resolveOnce(bs),
 	}
 
 	node, err := r.ResolvePath(ctx, ip)

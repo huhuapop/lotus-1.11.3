@@ -7,7 +7,7 @@ USAGE:
    lotus-miner [global options] command [command options] [arguments...]
 
 VERSION:
-   1.11.3
+   1.11.2
 
 COMMANDS:
    init     Initialize a lotus miner repo
@@ -430,7 +430,6 @@ COMMANDS:
 
 OPTIONS:
    --hide-sectors-info  hide sectors info (default: false)
-   --blocks value       Log of produced <blocks> newest blocks and rewards(Miner Fee excluded) (default: 0)
    --help, -h           show help (default: false)
    --version, -v        print the version (default: false)
    
@@ -507,7 +506,6 @@ USAGE:
 COMMANDS:
    list       List log systems
    set-level  Set log level
-   alerts     Get alert states
    help, h    Shows a list of commands or help for one command
 
 OPTIONS:
@@ -560,20 +558,6 @@ DESCRIPTION:
 OPTIONS:
    --system value  limit to log system
    --help, -h      show help (default: false)
-   
-```
-
-### lotus-miner log alerts
-```
-NAME:
-   lotus-miner log alerts - Get alert states
-
-USAGE:
-   lotus-miner log alerts [command options] [arguments...]
-
-OPTIONS:
-   --all       get all (active and inactive) alerts (default: false)
-   --help, -h  show help (default: false)
    
 ```
 
@@ -1488,7 +1472,6 @@ COMMANDS:
    update-state       ADVANCED: manually update the state of a sector, this may aid in error recovery
    pledge             store random data in a sector
    check-expire       Inspect expiring sectors
-   expired            Get or cleanup expired sectors
    renew              Renew expiring sectors while not exceeding each sector's max life
    extend             Extend sector expiration
    terminate          Terminate sector on-chain then remove (WARNING: This means losing power and collateral for the removed sector)
@@ -1515,11 +1498,9 @@ USAGE:
    lotus-miner sectors status [command options] <sectorNum>
 
 OPTIONS:
-   --log, -l             display event log (default: false)
-   --on-chain-info, -c   show sector on chain info (default: false)
-   --partition-info, -p  show partition related info (default: false)
-   --proof               print snark proof bytes as hex (default: false)
-   --help, -h            show help (default: false)
+   --log            display event log (default: false)
+   --on-chain-info  show sector on chain info (default: false)
+   --help, -h       show help (default: false)
    
 ```
 
@@ -1593,22 +1574,6 @@ USAGE:
 OPTIONS:
    --cutoff value  skip sectors whose current expiration is more than <cutoff> epochs from now, defaults to 60 days (default: 172800)
    --help, -h      show help (default: false)
-   
-```
-
-### lotus-miner sectors expired
-```
-NAME:
-   lotus-miner sectors expired - Get or cleanup expired sectors
-
-USAGE:
-   lotus-miner sectors expired [command options] [arguments...]
-
-OPTIONS:
-   --show-removed         show removed sectors (default: false)
-   --remove-expired       remove expired sectors (default: false)
-   --expired-epoch value  epoch at which to check sector expirations (default: WinningPoSt lookback epoch)
-   --help, -h             show help (default: false)
    
 ```
 

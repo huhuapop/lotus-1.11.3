@@ -1,4 +1,3 @@
-//go:build nerpanet
 // +build nerpanet
 
 package build

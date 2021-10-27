@@ -44,7 +44,6 @@
 * [I](#I)
   * [ID](#ID)
 * [Log](#Log)
-  * [LogAlerts](#LogAlerts)
   * [LogList](#LogList)
   * [LogSetLevel](#LogSetLevel)
 * [Market](#Market)
@@ -664,15 +663,6 @@ Response: `"12D3KooWGzxzKZYveHXtpG6AsrUJBcWxHBFS2HsEoGTxrMLvKXtf"`
 
 ## Log
 
-
-### LogAlerts
-
-
-Perms: admin
-
-Inputs: `null`
-
-Response: `null`
 
 ### LogList
 
@@ -2019,7 +2009,6 @@ Response:
   "CommR": null,
   "Proof": "Ynl0ZSBhcnJheQ==",
   "Deals": null,
-  "Pieces": null,
   "Ticket": {
     "Value": null,
     "Epoch": 10101

@@ -1,4 +1,3 @@
-//go:build !testground
 // +build !testground
 
 package build

@@ -10,11 +10,9 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/go-jsonrpc/auth"
-
 	"github.com/filecoin-project/lotus/api"
 	apitypes "github.com/filecoin-project/lotus/api/types"
 	"github.com/filecoin-project/lotus/build"
-	"github.com/filecoin-project/lotus/journal/alerting"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
 )
 
@@ -23,7 +21,6 @@ var session = uuid.New()
 type CommonAPI struct {
 	fx.In
 
-	Alerting     *alerting.Alerting
 	APISecret    *dtypes.APIAlg
 	ShutdownChan dtypes.ShutdownChan
 }
@@ -73,10 +70,6 @@ func (a *CommonAPI) LogList(context.Context) ([]string, error) {
 
 func (a *CommonAPI) LogSetLevel(ctx context.Context, subsystem, level string) error {
 	return logging.SetLogLevel(subsystem, level)
-}
-
-func (a *CommonAPI) LogAlerts(ctx context.Context) ([]alerting.Alert, error) {
-	return a.Alerting.GetAlerts(), nil
 }
 
 func (a *CommonAPI) Shutdown(ctx context.Context) error {

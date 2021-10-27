@@ -94,16 +94,10 @@ func (m *Miner) SectorsStatus(ctx context.Context, sid abi.SectorNumber, showOnC
 	}
 
 	deals := make([]abi.DealID, len(info.Pieces))
-	pieces := make([]api.SectorPiece, len(info.Pieces))
 	for i, piece := range info.Pieces {
-		pieces[i].Piece = piece.Piece
 		if piece.DealInfo == nil {
 			continue
 		}
-
-		pdi := *piece.DealInfo // copy
-		pieces[i].DealInfo = &pdi
-
 		deals[i] = piece.DealInfo.DealID
 	}
 
@@ -124,7 +118,6 @@ func (m *Miner) SectorsStatus(ctx context.Context, sid abi.SectorNumber, showOnC
 		CommR:    info.CommR,
 		Proof:    info.Proof,
 		Deals:    deals,
-		Pieces:   pieces,
 		Ticket: api.SealTicket{
 			Value: info.TicketValue,
 			Epoch: info.TicketEpoch,

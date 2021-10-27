@@ -7,7 +7,6 @@ import (
 	"math/big"
 
 	big2 "github.com/filecoin-project/go-state-types/big"
-	"github.com/filecoin-project/lotus/chain/consensus/filcns"
 
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-state-types/abi"
@@ -75,7 +74,7 @@ var minerTypesCmd = &cli.Command{
 			return err
 		}
 
-		cs := store.NewChainStore(bs, bs, mds, filcns.Weight, nil)
+		cs := store.NewChainStore(bs, bs, mds, nil)
 		defer cs.Close() //nolint:errcheck
 
 		cst := cbor.NewCborStore(bs)
